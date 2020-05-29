@@ -46,7 +46,7 @@ class AsciiTableExtension(TableExtension):
     @classmethod
     def _prepare_table(cls, name: str, data: pd.DataFrame):
         tio = TextIOWrapper(BytesIO(), "utf-8")
-        data.to_csv(tio)
+        data.to_csv(tio, index=False)
         bio = tio.detach()
         info = cls._get_tarinfo_from_bytesio(name, bio)
         return info, bio

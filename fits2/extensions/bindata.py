@@ -100,6 +100,6 @@ class MultipleDataExtension(BinaryDataExtension):
 
     @classmethod
     def _read(cls, header: dict, members: dict):
-        data = {key: cls._parse_npy(bio) for key, bio in members.items()}
+        data = {key[:-4]: cls._parse_npy(bio) for key, bio in members.items()}
         ext = cls(header=header, data=data)
         return ext

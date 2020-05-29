@@ -7,7 +7,7 @@ from fits2.extensions.tabledata import TableExtension, JSONTableExtension
 
 file = Fits2File()
 ext = BinaryDataExtension()
-ext.data = np.zeros(10)
+ext.data = np.zeros(12, dtype="f2")
 
 tab = JSONTableExtension()
 tab.data = pd.DataFrame(np.ones((10, 2)), columns=["A", "B"])
@@ -21,4 +21,10 @@ file.write("test.fits2")
 
 f2 = Fits2File.read("test.fits2")
 
-print(f2.header)
+f2["np"].data[:5] = 1
+print(f2["np"].data)
+
+del f2
+f2 = Fits2File.read("test.fits2")
+
+print(f2["np"].data)

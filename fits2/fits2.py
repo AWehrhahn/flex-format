@@ -4,6 +4,8 @@ import tarfile
 from io import BytesIO, TextIOWrapper
 from os.path import dirname
 from tarfile import TarFile, TarInfo
+import mmap
+import numpy as np
 
 import numpy as np
 
@@ -12,7 +14,7 @@ class Fits2Base:
     @classmethod
     def _prepare_json(cls, fname: str, data: dict):
         tio = TextIOWrapper(BytesIO(), "utf-8")
-        json.dump(data, tio)
+        json.dump(data, tio, default=cls._to_base_type)
         bio = tio.detach()
         info = cls._get_tarinfo_from_bytesio(fname, bio)
         return info, bio
@@ -34,6 +36,23 @@ class Fits2Base:
         info.size = bio.tell()
         bio.seek(0)
         return info
+
+    @staticmethod
+    def _to_base_type(value):
+        if value is None:
+            return value
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, np.integer):
+            return int(value)
+        if isinstance(value, np.floating):
+            return float(value)
+        if isinstance(value, np.bool_):
+            return bool(value)
+        if isinstance(value, np.str):
+            return str(value)
+
+        return value
 
 
 class Fits2Extension(Fits2Base):
@@ -61,48 +80,55 @@ class Fits2File(Fits2Base):
     def __setitem__(self, key, value):
         self.extensions[key] = value
 
-    def write(self, fname: str):
+    def write(self, fname: str, compression=False):
         # Write the header
         cls = self.__class__
         info, bio = cls._prepare_json("header.json", self.header)
         extensions = []
         for name, ext in self.extensions.items():
             extensions += ext._prepare(name)
-        with tarfile.open(fname, "w:gz") as file:
+
+        mode = "w:" if not compression else "w:gz"
+        with tarfile.open(fname, "w") as file:
             file.addfile(info, bio)
             for ext in extensions:
                 file.addfile(ext[0], ext[1])
 
     @staticmethod
     def read(fname: str):
-        with tarfile.open(fname, "r") as file:
-            header = Fits2File._read_json(file, "header.json")
+        handle = open(fname, "rb")
+        # If we allow mmap.ACCESS_WRITE, we invalidate the checksum
+        # So I think the best solution is to use COPY
+        # This also prevents the user accidentially messing up the files
+        mapped = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_COPY)
+        file = tarfile.open(mode="r", fileobj=mapped)
+        header = Fits2File._read_json(file, "header.json")
 
-            names = file.getnames()
-            names = np.array([n for n in names if n != "header.json"])
-            ext = [dirname(n) for n in names]
-            ext, mapping = np.unique(ext, return_inverse=True)
+        names = file.getnames()
+        names = np.array([n for n in names if n != "header.json"])
+        ext = [dirname(n) for n in names]
+        ext, mapping = np.unique(ext, return_inverse=True)
 
-            extensions = {}
-            for i, name in enumerate(ext):
-                # Determine the extension class and module
-                ext_header = Fits2File._read_json(file, f"{name}\\header.json")
-                ext_module = ext_header["extension_module"]
-                ext_class = ext_header["extension_class"]
+        extensions = {}
+        for i, name in enumerate(ext):
+            # Determine the extension class and module
+            ext_header = Fits2File._read_json(file, f"{name}\\header.json")
+            ext_module = ext_header["extension_module"]
+            ext_class = ext_header["extension_class"]
 
-                ext_module = importlib.import_module(ext_module)
-                ext_class = getattr(ext_module, ext_class)
+            ext_module = importlib.import_module(ext_module)
+            ext_class = getattr(ext_module, ext_class)
 
-                # Determine the files contributing to this extension
-                members = names[mapping == i]
-                ext_other = [n for n in members if not n.endswith("header.json")]
+            # TODO: lazy load the extensions?
+            # Determine the files contributing to this extension
+            members = names[mapping == i]
+            ext_other = [n for n in members if not n.endswith("header.json")]
 
-                ext_other = {
-                    other[len(name) + 1 :]: file.extractfile(other)
-                    for other in ext_other
-                }
-                exten = ext_class._read(ext_header, ext_other)
+            ext_other = {
+                other[len(name) + 1 :]: file.extractfile(other) for other in ext_other
+            }
+            exten = ext_class._read(ext_header, ext_other)
 
-                extensions[name] = exten
+            extensions[name] = exten
 
         return Fits2File(header=header, extensions=extensions)

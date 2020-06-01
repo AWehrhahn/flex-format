@@ -42,9 +42,10 @@ class BinaryDataExtension(FlexExtension):
             if dtype.hasobject:
                 msg = "Array can't be memory-mapped: Python objects in dtype."
                 raise ValueError(msg)
-            offset = bio.tell()
             order = "F" if fortran_order else "C"
-            offset += 4 * 64  # WHY?
+            offset = bio.tell()
+            # Add the offset from the Wrapper file
+            offset += bio.raw.offset
             data = np.ndarray.__new__(
                 np.memmap,
                 shape,

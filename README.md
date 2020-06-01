@@ -1,10 +1,10 @@
 Flex
-======
+====
 
 The flexible file fomat.
 
 Structure:
- - main folder zipped (tar.gz ?) or (zip ?)
+ - main folder tar (.gz)
  - contains one (1) header.json file, with Metadata (primary header)
  - contains any number of folders with more data
  - e.g. numpy data, pandas table

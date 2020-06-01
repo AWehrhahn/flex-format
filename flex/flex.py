@@ -128,15 +128,21 @@ class FlexFile(FlexBase):
 
         extensions = {}
         for i, name in enumerate(ext):
+            # Determine the files contributing to this extension
+            members = names[mapping == i]
+            ext_header = ""
+            ext_other = []
+            for n in members:
+                if n.endswith("header.json"):
+                    ext_header = n
+                else:
+                    ext_other += [n]
+
             # Determine the extension class and module
-            ext_header = cls._read_json(file, f"{name}\\header.json")
+            ext_header = cls._read_json(file, ext_header)
             ext_class = cls._read_ext_class(ext_header)
 
             # TODO: lazy load the extensions?
-            # Determine the files contributing to this extension
-            members = names[mapping == i]
-            ext_other = [n for n in members if not n.endswith("header.json")]
-
             ext_other = {
                 other[len(name) + 1 :]: file.extractfile(other) for other in ext_other
             }

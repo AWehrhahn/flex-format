@@ -7,6 +7,7 @@ from os.path import dirname
 from tarfile import TarFile, TarInfo
 
 import numpy as np
+from . import __version__
 
 
 class FlexBase:
@@ -72,7 +73,7 @@ class FlexFile(FlexBase):
     def __init__(self, header={}, extensions={}):
         self.header = header
         self.extensions = extensions
-        # self.header["__version__"] = __version__
+        self.header["__version__"] = __version__
 
     def __getitem__(self, key):
         return self.extensions[key]

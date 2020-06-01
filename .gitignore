@@ -1,5 +1,5 @@
 .vscode/
-fits2.egg-info/
+*.egg-info/
 **/__pycache__/
 
 test.fits2

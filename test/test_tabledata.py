@@ -36,5 +36,6 @@ def test_read_write(tableclass, tmp_fname, table):
 
     assert f2["tab"].data.size == 10 * 2
     assert np.all(f2["tab"].data == 1)
+    assert len(f2["tab"].data.columns) == 2
     assert "A" in f2["tab"].data.columns
     assert "B" in f2["tab"].data.columns

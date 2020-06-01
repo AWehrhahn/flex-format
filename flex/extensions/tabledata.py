@@ -31,7 +31,8 @@ class TableExtension(FlexExtension):
 
     @classmethod
     def _parse_table(cls, bio: BytesIO):
-        data = pd.read_parquet(bio)
+        b = BytesIO(bio.read())
+        data = pd.read_parquet(b)
         return data
 
     @classmethod

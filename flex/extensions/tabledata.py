@@ -42,6 +42,16 @@ class TableExtension(FlexExtension):
         ext = cls(header=header, data=data)
         return ext
 
+    def to_dict(self):
+        obj = {"header": self.header, "data": self.data.to_dict(orient="records")}
+        return obj
+
+    @classmethod
+    def from_dict(cls, header: dict, data: dict):
+        data = pd.DataFrame.from_records(data["data"])
+        obj = cls(header, data)
+        return obj
+
 
 class AsciiTableExtension(TableExtension):
     data_extension = "txt"

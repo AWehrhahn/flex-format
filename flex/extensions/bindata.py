@@ -1,6 +1,7 @@
 from io import BytesIO
 from os.path import join
 from tarfile import TarInfo
+import base64
 
 from numpy.lib.format import open_memmap, read_magic, _read_array_header, _check_version
 
@@ -70,6 +71,40 @@ class BinaryDataExtension(FlexExtension):
         ext = cls(header=header, data=data)
         return ext
 
+    @staticmethod
+    def _np_to_dict(data):
+        encoded = base64.b64encode(data.tobytes())
+        encoded = encoded.decode("utf-8")
+        obj = {
+            "dtype": data.dtype.str,
+            "shape": data.shape,
+            "order": "C",
+            "data": encoded,
+        }
+        return obj
+
+    @staticmethod
+    def _np_from_dict(data):
+        decoded = data["data"].encode("utf-8")
+        decoded = base64.b64decode(decoded)
+        arr = np.frombuffer(decoded, dtype=data["dtype"])
+        arr = arr.reshape(data["shape"])
+        return arr
+
+    def to_dict(self):
+        cls = self.__class__
+        obj = {
+            "header": self.header,
+            "data": cls._np_to_dict(self.data),
+        }
+        return obj
+
+    @classmethod
+    def from_dict(cls, header: dict, data: dict):
+        arr = cls._np_from_dict(data["data"])
+        obj = cls(header, arr)
+        return obj
+
 
 class MultipleDataExtension(BinaryDataExtension):
     def __init__(self, header={}, data={}):
@@ -104,3 +139,16 @@ class MultipleDataExtension(BinaryDataExtension):
         data = {key[:-4]: cls._parse_npy(bio) for key, bio in members.items()}
         ext = cls(header=header, data=data)
         return ext
+
+    def to_dict(self):
+        cls = self.__class__
+        obj = {"header": self.header}
+        for name, data in self.data.items():
+            obj[name] = cls._np_to_dict(data)
+        return obj
+
+    @classmethod
+    def from_dict(cls, header: dict, data: dict):
+        data = {name: cls._np_from_dict(d) for name, d in data.items()}
+        obj = cls(header, data=data)
+        return obj

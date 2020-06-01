@@ -68,6 +68,13 @@ class FlexExtension(FlexBase):
     def _parse(cls, header: dict, members: dict):
         raise NotImplementedError
 
+    def to_dict(self):
+        raise NotImplementedError
+
+    @classmethod
+    def from_dict(cls, header: dict, data):
+        raise NotImplementedError
+
 
 class FlexFile(FlexBase):
     def __init__(self, header={}, extensions={}):
@@ -90,10 +97,19 @@ class FlexFile(FlexBase):
             extensions += ext._prepare(name)
 
         mode = "w:" if not compression else "w:gz"
-        with tarfile.open(fname, "w") as file:
+        with tarfile.open(fname, mode) as file:
             file.addfile(info, bio)
             for ext in extensions:
                 file.addfile(ext[0], ext[1])
+
+    @classmethod
+    def _read_ext_class(cls, ext_header):
+        ext_module = ext_header["extension_module"]
+        ext_class = ext_header["extension_class"]
+
+        ext_module = importlib.import_module(ext_module)
+        ext_class = getattr(ext_module, ext_class)
+        return ext_class
 
     @classmethod
     def read(cls, fname: str):
@@ -114,11 +130,7 @@ class FlexFile(FlexBase):
         for i, name in enumerate(ext):
             # Determine the extension class and module
             ext_header = cls._read_json(file, f"{name}\\header.json")
-            ext_module = ext_header["extension_module"]
-            ext_class = ext_header["extension_class"]
-
-            ext_module = importlib.import_module(ext_module)
-            ext_class = getattr(ext_module, ext_class)
+            ext_class = cls._read_ext_class(ext_header)
 
             # TODO: lazy load the extensions?
             # Determine the files contributing to this extension
@@ -133,3 +145,49 @@ class FlexFile(FlexBase):
             extensions[name] = exten
 
         return cls(header=header, extensions=extensions)
+
+    def to_dict(self):
+        obj = {"header": self.header}
+        for name, ext in self.extensions.items():
+            obj[name] = ext.to_dict()
+        return obj
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        extensions = {}
+        for name, ext in data.items():
+            if name == "header":
+                header = ext
+                continue
+
+            ext_header = ext["header"]
+            ext_class = cls._read_ext_class(ext_header)
+            del ext["header"]
+            exten = ext_class.from_dict(ext_header, ext)
+            extensions[name] = exten
+
+        obj = cls(header, extensions)
+        return obj
+
+    def to_json(self, fp=None):
+        cls = self.__class__
+        obj = self.to_dict()
+        if fp is None:
+            obj = json.dumps(obj, default=cls._to_base_type)
+            return obj
+        elif isinstance(fp, str):
+            with open(fp, "w") as f:
+                json.dump(obj, f, default=cls._to_base_type)
+        else:
+            json.dump(obj, fp, default=cls._to_base_type)
+
+    @classmethod
+    def from_json(cls, obj):
+        try:
+            obj = json.loads(obj)
+        except json.decoder.JSONDecodeError as ex:
+            # Its already a json string
+            with open(obj, "r") as f:
+                obj = json.load(f)
+        obj = cls.from_dict(obj)
+        return obj

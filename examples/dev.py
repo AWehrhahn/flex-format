@@ -7,7 +7,7 @@ from flex.extensions.tabledata import TableExtension, JSONTableExtension
 
 file = FlexFile()
 ext = MultipleDataExtension()
-ext.data["data"] = np.zeros(12, dtype="f2")
+ext.data["data"] = np.arange(12, dtype="i2")
 
 tab = JSONTableExtension()
 tab.data = pd.DataFrame(np.ones((10, 2)), columns=["A", "B"])
@@ -16,6 +16,10 @@ tab.data = pd.DataFrame(np.ones((10, 2)), columns=["A", "B"])
 file.header["bla"] = "blub"
 file.extensions["np"] = ext
 file.extensions["tab"] = tab
+
+d = file.to_json("test.json")
+d2 = FlexFile.from_json("test.json")
+
 
 file.write("test.fits2")
 

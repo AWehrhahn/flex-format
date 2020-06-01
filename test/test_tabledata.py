@@ -39,3 +39,20 @@ def test_read_write(tableclass, tmp_fname, table):
     assert len(f2["tab"].data.columns) == 2
     assert "A" in f2["tab"].data.columns
     assert "B" in f2["tab"].data.columns
+
+
+def test_json(tableclass, tmp_fname, table):
+    file = FlexFile()
+    ext = tableclass(data=table)
+    file.extensions["tab"] = ext
+
+    file.to_json(tmp_fname)
+
+    del file
+    f2 = FlexFile.from_json(tmp_fname)
+
+    assert f2["tab"].data.size == 10 * 2
+    assert np.all(f2["tab"].data == 1)
+    assert len(f2["tab"].data.columns) == 2
+    assert "A" in f2["tab"].data.columns
+    assert "B" in f2["tab"].data.columns

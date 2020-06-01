@@ -1,16 +1,15 @@
 import importlib
 import json
+import mmap
 import tarfile
 from io import BytesIO, TextIOWrapper
 from os.path import dirname
 from tarfile import TarFile, TarInfo
-import mmap
-import numpy as np
 
 import numpy as np
 
 
-class Fits2Base:
+class FlexBase:
     @classmethod
     def _prepare_json(cls, fname: str, data: dict):
         tio = TextIOWrapper(BytesIO(), "utf-8")
@@ -55,7 +54,7 @@ class Fits2Base:
         return value
 
 
-class Fits2Extension(Fits2Base):
+class FlexExtension(FlexBase):
     def __init__(self, header={}, **kwargs):
         self.header = header
         self.header["extension_module"] = self.__class__.__module__
@@ -64,15 +63,16 @@ class Fits2Extension(Fits2Base):
     def _prepare(self, name: str):
         raise NotImplementedError
 
-    @staticmethod
-    def _read(header, members):
+    @classmethod
+    def _parse(cls, header: dict, members: dict):
         raise NotImplementedError
 
 
-class Fits2File(Fits2Base):
+class FlexFile(FlexBase):
     def __init__(self, header={}, extensions={}):
         self.header = header
         self.extensions = extensions
+        # self.header["__version__"] = __version__
 
     def __getitem__(self, key):
         return self.extensions[key]
@@ -94,15 +94,15 @@ class Fits2File(Fits2Base):
             for ext in extensions:
                 file.addfile(ext[0], ext[1])
 
-    @staticmethod
-    def read(fname: str):
+    @classmethod
+    def read(cls, fname: str):
         handle = open(fname, "rb")
         # If we allow mmap.ACCESS_WRITE, we invalidate the checksum
         # So I think the best solution is to use COPY
         # This also prevents the user accidentially messing up the files
         mapped = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_COPY)
         file = tarfile.open(mode="r", fileobj=mapped)
-        header = Fits2File._read_json(file, "header.json")
+        header = cls._read_json(file, "header.json")
 
         names = file.getnames()
         names = np.array([n for n in names if n != "header.json"])
@@ -112,7 +112,7 @@ class Fits2File(Fits2Base):
         extensions = {}
         for i, name in enumerate(ext):
             # Determine the extension class and module
-            ext_header = Fits2File._read_json(file, f"{name}\\header.json")
+            ext_header = cls._read_json(file, f"{name}\\header.json")
             ext_module = ext_header["extension_module"]
             ext_class = ext_header["extension_class"]
 
@@ -127,8 +127,8 @@ class Fits2File(Fits2Base):
             ext_other = {
                 other[len(name) + 1 :]: file.extractfile(other) for other in ext_other
             }
-            exten = ext_class._read(ext_header, ext_other)
+            exten = ext_class._parse(ext_header, ext_other)
 
             extensions[name] = exten
 
-        return Fits2File(header=header, extensions=extensions)
+        return cls(header=header, extensions=extensions)

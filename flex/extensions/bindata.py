@@ -7,10 +7,10 @@ from numpy.lib.format import open_memmap, read_magic, _read_array_header, _check
 import numpy as np
 import mmap
 
-from ..fits2 import Fits2Extension
+from ..flex import FlexExtension
 
 
-class BinaryDataExtension(Fits2Extension):
+class BinaryDataExtension(FlexExtension):
     def __init__(self, header={}, data=[]):
         super().__init__(header=header)
         self.data = np.asarray(data)
@@ -63,7 +63,7 @@ class BinaryDataExtension(Fits2Extension):
         return data
 
     @classmethod
-    def _read(cls, header: dict, members: dict):
+    def _parse(cls, header: dict, members: dict):
         bio = members["data.npy"]
         data = cls._parse_npy(bio)
         ext = cls(header=header, data=data)
@@ -99,7 +99,7 @@ class MultipleDataExtension(BinaryDataExtension):
         return result
 
     @classmethod
-    def _read(cls, header: dict, members: dict):
+    def _parse(cls, header: dict, members: dict):
         data = {key[:-4]: cls._parse_npy(bio) for key, bio in members.items()}
         ext = cls(header=header, data=data)
         return ext

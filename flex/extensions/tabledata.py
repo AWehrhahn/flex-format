@@ -1,10 +1,12 @@
+from io import BytesIO, TextIOWrapper
 from os.path import join
+
 import pandas as pd
-from io import TextIOWrapper, BytesIO
-from ..fits2 import Fits2Extension
+
+from ..flex import FlexExtension
 
 
-class TableExtension(Fits2Extension):
+class TableExtension(FlexExtension):
     data_extension = "parquet"
 
     def __init__(self, header={}, data=None):
@@ -33,7 +35,7 @@ class TableExtension(Fits2Extension):
         return data
 
     @classmethod
-    def _read(cls, header: dict, members: list):
+    def _parse(cls, header: dict, members: list):
         bio = members[f"data.{cls.data_extension}"]
         data = cls._parse_table(bio)
         ext = cls(header=header, data=data)

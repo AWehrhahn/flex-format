@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-from fits2.fits2 import Fits2File
-from fits2.extensions.bindata import BinaryDataExtension, MultipleDataExtension
-from fits2.extensions.tabledata import TableExtension, JSONTableExtension
+from flex.flex import FlexFile
+from flex.extensions.bindata import BinaryDataExtension, MultipleDataExtension
+from flex.extensions.tabledata import TableExtension, JSONTableExtension
 
 
-file = Fits2File()
+file = FlexFile()
 ext = MultipleDataExtension()
 ext.data["data"] = np.zeros(12, dtype="f2")
 
@@ -19,12 +19,12 @@ file.extensions["tab"] = tab
 
 file.write("test.fits2")
 
-f2 = Fits2File.read("test.fits2")
+f2 = FlexFile.read("test.fits2")
 
 f2["np"].data["data"][:5] = 1
 print(f2["np"].data)
 
 del f2
-f2 = Fits2File.read("test.fits2")
+f2 = FlexFile.read("test.fits2")
 
 print(f2["np"].data)

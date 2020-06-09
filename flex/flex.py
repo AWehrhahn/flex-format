@@ -123,7 +123,9 @@ class FlexFile(FlexBase):
 
         names = file.getnames()
         names = np.array([n for n in names if n != "header.json"])
-        ext = [dirname(n) for n in names]
+        ext = np.char.replace(names, "\\", "/")
+        ext = np.char.partition(ext, "/")
+        ext = ext[:, 0]
         ext, mapping = np.unique(ext, return_inverse=True)
 
         extensions = {}

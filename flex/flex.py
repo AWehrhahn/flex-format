@@ -40,6 +40,7 @@ class FlexBase:
         bio.seek(0)
         return info
 
+
 class FlexExtension(FlexBase):
     def __init__(self, header={}, **kwargs):
         self.header = header
@@ -62,15 +63,17 @@ class FlexExtension(FlexBase):
 
 
 class FlexFile(FlexBase):
-    def __init__(self, header={}, extensions={}):
+    def __init__(self, header={}, extensions={}, fileobj=None):
         if isinstance(header, str):
             other = self.read(header)
             self.header = other.header
             self.extensions = other.extensions
+            self.fileobj = other.fileobj
         else:
             self.header = header
             self.extensions = extensions
             self.header["__version__"] = __version__
+            self.fileobj = fileobj
 
     def __getitem__(self, key):
         return self.extensions[key]
@@ -102,13 +105,17 @@ class FlexFile(FlexBase):
         return ext_class
 
     @classmethod
-    def read(cls, fname: str):
+    def read(cls, fname: str, mmap=False):
         handle = open(fname, "rb")
         # If we allow mmap.ACCESS_WRITE, we invalidate the checksum
         # So I think the best solution is to use COPY
         # This also prevents the user accidentially messing up the files
-        mapped = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_COPY)
-        file = tarfile.open(mode="r", fileobj=mapped)
+        if mmap:
+            mapped = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_COPY)
+            file = tarfile.open(mode="r", fileobj=mapped)
+        else:
+            file = tarfile.open(fname, mode="r")
+
         header = cls._read_json(file, "header.json")
 
         names = file.getnames()
@@ -143,7 +150,12 @@ class FlexFile(FlexBase):
 
             extensions[name] = exten
 
-        return cls(header=header, extensions=extensions)
+        return cls(header=header, extensions=extensions, fileobj=file)
+
+    def close(self):
+        if self.fileobj is not None:
+            self.fileobj.fileobj.close()
+            self.fileobj.close()
 
     def to_dict(self):
         obj = {"header": self.header}

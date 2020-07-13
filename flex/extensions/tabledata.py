@@ -1,5 +1,4 @@
 from io import BytesIO, TextIOWrapper
-from os.path import join
 
 import pandas as pd
 
@@ -22,8 +21,8 @@ class TableExtension(FlexExtension):
 
     def _prepare(self, name: str):
         cls = self.__class__
-        header_fname = join(name, "header.json")
-        data_fname = join(name, f"data.{cls.data_extension}")
+        header_fname = f"{name}/header.json"
+        data_fname = f"{name}/data.{cls.data_extension}"
         header_info, header_bio = cls._prepare_json(header_fname, self.header)
         data_info, data_bio = cls._prepare_table(data_fname, self.data)
 

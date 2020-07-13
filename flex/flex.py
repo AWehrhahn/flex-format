@@ -7,14 +7,17 @@ from os.path import dirname
 from tarfile import TarFile, TarInfo
 
 import numpy as np
+
 from . import __version__
+from .json_encoder import FlexJSONEncoder
 
 
 class FlexBase:
     @classmethod
     def _prepare_json(cls, fname: str, data: dict):
         tio = TextIOWrapper(BytesIO(), "utf-8")
-        json.dump(data, tio, default=cls._to_base_type)
+        kwargs = dict(cls=FlexJSONEncoder, allow_nan=False, skipkeys=False)
+        json.dump(data, tio, **kwargs)
         bio = tio.detach()
         info = cls._get_tarinfo_from_bytesio(fname, bio)
         return info, bio
@@ -36,24 +39,6 @@ class FlexBase:
         info.size = bio.tell()
         bio.seek(0)
         return info
-
-    @staticmethod
-    def _to_base_type(value):
-        if value is None:
-            return value
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        if isinstance(value, np.integer):
-            return int(value)
-        if isinstance(value, np.floating):
-            return float(value)
-        if isinstance(value, np.bool_):
-            return bool(value)
-        if isinstance(value, np.str):
-            return str(value)
-
-        return value
-
 
 class FlexExtension(FlexBase):
     def __init__(self, header={}, **kwargs):
@@ -78,9 +63,14 @@ class FlexExtension(FlexBase):
 
 class FlexFile(FlexBase):
     def __init__(self, header={}, extensions={}):
-        self.header = header
-        self.extensions = extensions
-        self.header["__version__"] = __version__
+        if isinstance(header, str):
+            other = self.read(header)
+            self.header = other.header
+            self.extensions = other.extensions
+        else:
+            self.header = header
+            self.extensions = extensions
+            self.header["__version__"] = __version__
 
     def __getitem__(self, key):
         return self.extensions[key]
@@ -123,6 +113,7 @@ class FlexFile(FlexBase):
 
         names = file.getnames()
         names = np.array([n for n in names if n != "header.json"])
+        # If the file was created using Windows style paths
         ext = np.char.replace(names, "\\", "/")
         ext = np.char.partition(ext, "/")
         ext = ext[:, 0]
@@ -180,14 +171,15 @@ class FlexFile(FlexBase):
     def to_json(self, fp=None):
         cls = self.__class__
         obj = self.to_dict()
+        kwargs = dict(cls=FlexJSONEncoder, allow_nan=False, skipkeys=False)
         if fp is None:
-            obj = json.dumps(obj, default=cls._to_base_type)
+            obj = json.dumps(obj, **kwargs)
             return obj
         elif isinstance(fp, str):
             with open(fp, "w") as f:
-                json.dump(obj, f, default=cls._to_base_type)
+                json.dump(obj, f, **kwargs)
         else:
-            json.dump(obj, fp, default=cls._to_base_type)
+            json.dump(obj, fp, **kwargs)
 
     @classmethod
     def from_json(cls, obj):

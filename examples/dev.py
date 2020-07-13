@@ -13,7 +13,9 @@ tab = JSONTableExtension()
 tab.data = pd.DataFrame(np.ones((10, 2)), columns=["A", "B"])
 
 
-file.header["bla"] = "blub"
+file.header["bla"] = np.float(3e10)
+file.header["blub"] = np.nan
+file.header["blrub"] = float("inf")
 file.extensions["np"] = ext
 file.extensions["tab"] = tab
 

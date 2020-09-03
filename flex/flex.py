@@ -172,6 +172,7 @@ class FlexFile(FlexBase):
 
     @classmethod
     def from_dict(cls, data: dict):
+        header = {}
         extensions = {}
         for name, ext in data.items():
             if name == "header":

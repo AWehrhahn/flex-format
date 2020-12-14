@@ -94,8 +94,11 @@ class FlexJSONEncoder(json.JSONEncoder):
         return _iterencode(obj, 0)
 
     def default(self, obj):
-        if hasattr(obj, "to_json"):
-            return obj.to_json()
+        if hasattr(obj, "to_dict"):
+            data = obj.to_dict()
+            data["__module__"] = obj.__class__.__module__
+            data["__class__"] = obj.__class__.__name__
+            return data
         if isinstance(obj, coordinates.SkyCoord):
             return {
                 "__module__": obj.__class__.__module__,
@@ -167,7 +170,13 @@ class FlexJSONDecoder(json.JSONDecoder):
 
     def _object_hook(self, obj):
         # If we specified a class and module use this:
-        if isinstance(obj, dict) and "__class__" in obj and "__module__" in obj:
+        # but its not the lowest level of the header!
+        if (
+            isinstance(obj, dict)
+            and "__class__" in obj
+            and "__module__" in obj
+            and not obj.get("__header__", False)
+        ):
             module = importlib.import_module(obj["__module__"])
             cls = getattr(module, obj["__class__"])
 

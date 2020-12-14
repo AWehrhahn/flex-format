@@ -45,13 +45,11 @@ class FlexExtension(FlexBase):
     def __init__(self, header={}, cls=None, **kwargs):
         self.header = header
         if cls is not None:
-            (
-                self.header["extension_module"],
-                self.header["extension_class"],
-            ) = cls.rsplit(".", 1)
+            (self.header["__module__"], self.header["__class__"],) = cls.rsplit(".", 1)
         else:
-            self.header["extension_module"] = self.__class__.__module__
-            self.header["extension_class"] = self.__class__.__name__
+            self.header["__module__"] = self.__class__.__module__
+            self.header["__class__"] = self.__class__.__name__
+        self.header["__header__"] = True
 
     def _prepare(self, name: str):
         raise NotImplementedError
@@ -111,8 +109,9 @@ class FlexFile(FlexBase):
         else:
             self.header = header
             self.extensions = extensions
-            self.header["__version__"] = __version__
             self.fileobj = fileobj
+            self.header["__version__"] = __version__
+            self.header["__header__"] = True
 
     def __getitem__(self, key):
         return self.extensions[key]
@@ -123,6 +122,10 @@ class FlexFile(FlexBase):
     def write(self, fname: str, compression=False):
         # Write the header
         cls = self.__class__
+        # Update header with current metadata
+        self.header["__version__"] = __version__
+        self.header["__header__"] = True
+
         info, bio = cls._prepare_json("header.json", self.header)
         extensions = []
         for name, ext in self.extensions.items():
@@ -130,9 +133,9 @@ class FlexFile(FlexBase):
                 extensions += ext._prepare(name)
             elif hasattr(ext, "__flex_save__"):
                 extensions += ext.__flex_save__()._prepare(name)
-            elif hasattr(ext, "to_json"):
+            elif hasattr(ext, "to_dict"):
                 extensions += JsonDataExtension(
-                    data=ext.to_json(),
+                    data=ext.to_dict(),
                     cls=f"{ext.__class__.__module__}.{ext.__class__.__name__}",
                 )
             else:
@@ -146,8 +149,8 @@ class FlexFile(FlexBase):
 
     @classmethod
     def _read_ext_class(cls, ext_header):
-        ext_module = ext_header["extension_module"]
-        ext_class = ext_header["extension_class"]
+        ext_module = ext_header["__module__"]
+        ext_class = ext_header["__class__"]
 
         ext_module = importlib.import_module(ext_module)
         ext_class = getattr(ext_module, ext_class)
@@ -199,9 +202,9 @@ class FlexFile(FlexBase):
                 exten = ext_class._parse(ext_header, ext_other)
             elif hasattr(ext_class, "__flex_load__"):
                 exten = ext_class.__flex_load__(ext_header, ext_other)
-            elif hasattr(ext_class, "from_json"):
+            elif hasattr(ext_class, "from_dict"):
                 temp_exten = JsonDataExtension._parse(ext_header, ext_other)
-                exten = ext_class.from_json(temp_exten.data)
+                exten = ext_class.from_dict(temp_exten.data)
             else:
                 raise ValueError(f"Could not decode extension {name}")
 

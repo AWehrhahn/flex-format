@@ -9,7 +9,7 @@ from tarfile import TarFile, TarInfo
 import numpy as np
 
 from . import __version__
-from .json_encoder import FlexJSONEncoder
+from .json_encoder import FlexJSONEncoder, FlexJSONDecoder
 
 
 class FlexBase:
@@ -24,7 +24,7 @@ class FlexBase:
 
     @staticmethod
     def _parse_json(bio):
-        data = json.load(bio)
+        data = json.load(bio, cls=FlexJSONDecoder)
         return data
 
     @classmethod
@@ -42,10 +42,16 @@ class FlexBase:
 
 
 class FlexExtension(FlexBase):
-    def __init__(self, header={}, **kwargs):
+    def __init__(self, header={}, cls=None, **kwargs):
         self.header = header
-        self.header["extension_module"] = self.__class__.__module__
-        self.header["extension_class"] = self.__class__.__name__
+        if cls is not None:
+            (
+                self.header["extension_module"],
+                self.header["extension_class"],
+            ) = cls.rsplit(".", 1)
+        else:
+            self.header["extension_module"] = self.__class__.__module__
+            self.header["extension_class"] = self.__class__.__name__
 
     def _prepare(self, name: str):
         raise NotImplementedError
@@ -60,6 +66,39 @@ class FlexExtension(FlexBase):
     @classmethod
     def from_dict(cls, header: dict, data):
         raise NotImplementedError
+
+
+class JsonDataExtension(FlexExtension):
+    def __init__(self, header={}, data={}, cls=None):
+        super().__init__(header=header, cls=cls)
+        self.data = data
+
+    def _prepare(self, name: str):
+        cls = self.__class__
+        header_fname = f"{name}/header.json"
+        data_fname = f"{name}/data.json"
+        header_info, header_bio = cls._prepare_json(header_fname, self.header)
+        data_info, data_bio = cls._prepare_json(data_fname, self.data)
+
+        return [(header_info, header_bio), (data_info, data_bio)]
+
+    @classmethod
+    def _parse(cls, header: dict, members: dict):
+        bio = members["data.json"]
+        data = cls._parse_json(bio)
+        ext = cls(header=header, data=data)
+        return ext
+
+    def to_dict(self):
+        cls = self.__class__
+        obj = {"header": self.header, "data": self.data}
+        return obj
+
+    @classmethod
+    def from_dict(cls, header: dict, data: dict):
+        arr = data["data"]
+        obj = cls(header, arr)
+        return obj
 
 
 class FlexFile(FlexBase):
@@ -87,7 +126,17 @@ class FlexFile(FlexBase):
         info, bio = cls._prepare_json("header.json", self.header)
         extensions = []
         for name, ext in self.extensions.items():
-            extensions += ext._prepare(name)
+            if isinstance(ext, FlexExtension):
+                extensions += ext._prepare(name)
+            elif hasattr(ext, "__flex_save__"):
+                extensions += ext.__flex_save__()._prepare(name)
+            elif hasattr(ext, "to_json"):
+                extensions += JsonDataExtension(
+                    data=ext.to_json(),
+                    cls=f"{ext.__class__.__module__}.{ext.__class__.__name__}",
+                )
+            else:
+                raise ValueError(f"Could not save extension {name}")
 
         mode = "w:" if not compression else "w:gz"
         with tarfile.open(fname, mode) as file:
@@ -146,7 +195,15 @@ class FlexFile(FlexBase):
             ext_other = {
                 other[len(name) + 1 :]: file.extractfile(other) for other in ext_other
             }
-            exten = ext_class._parse(ext_header, ext_other)
+            if issubclass(ext_class, FlexExtension):
+                exten = ext_class._parse(ext_header, ext_other)
+            elif hasattr(ext_class, "__flex_load__"):
+                exten = ext_class.__flex_load__(ext_header, ext_other)
+            elif hasattr(ext_class, "from_json"):
+                temp_exten = JsonDataExtension._parse(ext_header, ext_other)
+                exten = ext_class.from_json(temp_exten.data)
+            else:
+                raise ValueError(f"Could not decode extension {name}")
 
             extensions[name] = exten
 
@@ -196,10 +253,10 @@ class FlexFile(FlexBase):
     @classmethod
     def from_json(cls, obj):
         try:
-            obj = json.loads(obj)
+            obj = json.loads(obj, cls=FlexJSONDecoder)
         except json.decoder.JSONDecodeError as ex:
             # Its already a json string
             with open(obj, "r") as f:
-                obj = json.load(f)
+                obj = json.load(f, cls=FlexJSONDecoder)
         obj = cls.from_dict(obj)
         return obj

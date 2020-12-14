@@ -8,8 +8,8 @@ from ..flex import FlexExtension
 class TableExtension(FlexExtension):
     data_extension = "parquet"
 
-    def __init__(self, header={}, data=None):
-        super().__init__(header=header)
+    def __init__(self, header={}, data=None, cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = data
 
     @classmethod

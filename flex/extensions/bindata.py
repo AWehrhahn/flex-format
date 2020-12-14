@@ -11,8 +11,8 @@ from ..flex import FlexExtension
 
 
 class BinaryDataExtension(FlexExtension):
-    def __init__(self, header={}, data=[]):
-        super().__init__(header=header)
+    def __init__(self, header={}, data=[], cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = np.asarray(data)
 
     @classmethod
@@ -106,8 +106,8 @@ class BinaryDataExtension(FlexExtension):
 
 
 class MultipleDataExtension(BinaryDataExtension):
-    def __init__(self, header={}, data={}):
-        super().__init__(header=header)
+    def __init__(self, header={}, data={}, cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = dict(data)
 
     def __getitem__(self, key):

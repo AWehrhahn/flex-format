@@ -149,8 +149,12 @@ class FlexFile(FlexBase):
 
     @classmethod
     def _read_ext_class(cls, ext_header):
-        ext_module = ext_header["__module__"]
-        ext_class = ext_header["__class__"]
+        try:
+            ext_module = ext_header["__module__"]
+            ext_class = ext_header["__class__"]
+        except KeyError:
+            ext_module = ext_header["extension_module"]
+            ext_class = ext_header["extension_class"]
 
         ext_module = importlib.import_module(ext_module)
         ext_class = getattr(ext_module, ext_class)
@@ -172,11 +176,14 @@ class FlexFile(FlexBase):
 
         names = file.getnames()
         names = np.array([n for n in names if n != "header.json"])
-        # If the file was created using Windows style paths
-        ext = np.char.replace(names, "\\", "/")
-        ext = np.char.partition(ext, "/")
-        ext = ext[:, 0]
-        ext, mapping = np.unique(ext, return_inverse=True)
+        if len(names) != 0:
+            # If the file was created using Windows style paths
+            ext = np.char.replace(names, "\\", "/")
+            ext = np.char.partition(ext, "/")
+            ext = ext[:, 0]
+            ext, mapping = np.unique(ext, return_inverse=True)
+        else:
+            ext, mapping = [], None
 
         extensions = {}
         for i, name in enumerate(ext):

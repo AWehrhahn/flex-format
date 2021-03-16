@@ -55,7 +55,7 @@ class FlexJSONEncoder(json.JSONEncoder):
             # and/or platform-specific, so do tests which don't depend on the
             # internals.
 
-            if obj != obj:
+            if obj != obj: # obj is NaN
                 text = "null"
             elif obj == _inf:
                 text = _repr(INFINITY_VALUE)
@@ -179,6 +179,9 @@ class FlexJSONDecoder(json.JSONDecoder):
         ):
             module = importlib.import_module(obj["__module__"])
             cls = getattr(module, obj["__class__"])
+
+            if obj["__class__"] == "Quantity" and obj["value"] is None:
+                obj["value"] = float("NaN")
 
             for k, v in obj.items():
                 if k not in ["__class__", "__module__"]:

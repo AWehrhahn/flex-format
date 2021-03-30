@@ -117,9 +117,15 @@ class FlexJSONEncoder(json.JSONEncoder):
             }
         if isinstance(obj, units.UnitBase):
             return {
-                "__module__": obj.__class__.__module__,
+                "__module__": "astropy.units",
                 "__class__": "Unit",  # Unit can parse everything no problem
                 "value": str(obj),
+            }
+        if isinstance(obj, units.DexUnit):
+            return {
+                "__module__": "astropy.units",
+                "__class__": "Unit",
+                "value": str(obj)
             }
         if isinstance(obj, units.quantity.Quantity):
             return {

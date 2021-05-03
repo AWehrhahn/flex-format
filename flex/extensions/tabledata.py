@@ -1,5 +1,4 @@
 from io import BytesIO, TextIOWrapper
-from os.path import join
 
 import pandas as pd
 
@@ -9,8 +8,8 @@ from ..flex import FlexExtension
 class TableExtension(FlexExtension):
     data_extension = "parquet"
 
-    def __init__(self, header={}, data=None):
-        super().__init__(header=header)
+    def __init__(self, header={}, data=None, cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = data
 
     @classmethod
@@ -22,8 +21,8 @@ class TableExtension(FlexExtension):
 
     def _prepare(self, name: str):
         cls = self.__class__
-        header_fname = join(name, "header.json")
-        data_fname = join(name, f"data.{cls.data_extension}")
+        header_fname = f"{name}/header.json"
+        data_fname = f"{name}/data.{cls.data_extension}"
         header_info, header_bio = cls._prepare_json(header_fname, self.header)
         data_info, data_bio = cls._prepare_table(data_fname, self.data)
 

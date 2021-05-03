@@ -1,5 +1,4 @@
 from io import BytesIO
-from os.path import join
 from tarfile import TarInfo
 import base64
 
@@ -12,8 +11,8 @@ from ..flex import FlexExtension
 
 
 class BinaryDataExtension(FlexExtension):
-    def __init__(self, header={}, data=[]):
-        super().__init__(header=header)
+    def __init__(self, header={}, data=[], cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = np.asarray(data)
 
     @classmethod
@@ -25,8 +24,8 @@ class BinaryDataExtension(FlexExtension):
 
     def _prepare(self, name: str):
         cls = self.__class__
-        header_fname = join(name, "header.json")
-        data_fname = join(name, "data.npy")
+        header_fname = f"{name}/header.json"
+        data_fname = f"{name}/data.npy"
         header_info, header_bio = cls._prepare_json(header_fname, self.header)
         data_info, data_bio = cls._prepare_npy(data_fname, self.data)
 
@@ -107,8 +106,8 @@ class BinaryDataExtension(FlexExtension):
 
 
 class MultipleDataExtension(BinaryDataExtension):
-    def __init__(self, header={}, data={}):
-        super().__init__(header=header)
+    def __init__(self, header={}, data={}, cls=None):
+        super().__init__(header=header, cls=cls)
         self.data = dict(data)
 
     def __getitem__(self, key):
@@ -123,12 +122,12 @@ class MultipleDataExtension(BinaryDataExtension):
     def _prepare(self, name: str):
         cls = self.__class__
 
-        header_fname = join(name, "header.json")
+        header_fname = f"{name}/header.json"
         header_info, header_bio = cls._prepare_json(header_fname, self.header)
         result = [(header_info, header_bio)]
 
         for key, value in self.data.items():
-            data_fname = join(name, f"{key}.npy")
+            data_fname = f"{name}/{key}.npy"
             data_info, data_bio = cls._prepare_npy(data_fname, value)
             result += [(data_info, data_bio)]
 

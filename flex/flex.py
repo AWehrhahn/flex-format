@@ -1,16 +1,19 @@
 import importlib
 import json
+from json.decoder import JSONDecoder
 import tarfile
 from io import BytesIO, TextIOWrapper
 from tarfile import TarInfo
 
 import numpy as np
+from numpy.lib.arraysetops import isin
 
 from . import __version__
 from .json_encoder import FlexJSONDecoder, FlexJSONEncoder
 
 try:
     from astropy.io import fits
+    import ast
 except ImportError:
     fits = None
 
@@ -47,14 +50,12 @@ class FlexBase:
         INFINITY_VALUE = float("inf")
 
         def floatstr(obj):
-            if obj != obj:
-                return "NaN"
-            if obj == INFINITY_VALUE:
-                return "+Inf"
-            if obj == -INFINITY_VALUE:
-                return "-Inf"
-            return obj
-
+            if isinstance(obj, (int, np.integer, str, np.str)):
+                return obj
+            if isinstance(obj, (float, np.floating)):
+                return repr(obj)
+            return repr(obj)
+        # header = json.loads(json.dumps(header, cls=JSONDecoder))
         header = {k: floatstr(v) for k, v in self.header.items()}
         header = fits.Header(header)
         return header
@@ -65,12 +66,19 @@ class FlexBase:
         NaN = float("NaN")
 
         def floatstr(obj):
-            if obj == "NaN":
+            if obj == "nan":
                 return NaN
-            if obj == "+Inf":
+            if obj == "inf":
                 return INFINITY_VALUE
-            if obj == "-Inf":
+            if obj == "-inf":
                 return -INFINITY_VALUE
+            if isinstance(obj, str):
+                if obj.startswith("array"):
+                    return np.array(ast.literal_eval(obj[6:-1]))
+                try:
+                    return ast.literal_eval(obj)
+                except:
+                    pass
             return obj
 
         header = {k: floatstr(v) for k, v in header.items()}

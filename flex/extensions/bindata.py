@@ -114,14 +114,13 @@ class BinaryDataExtension(FlexExtension):
         try:
             fits_format = f"{value.dtype.kind}{value.dtype.itemsize}"
             fits_format = NUMPY2FITS[fits_format]
+            fits_dim = None
             shape = value.shape
             if len(shape) > 1:
                 size = np.prod(value.shape[1:])
                 fits_format = "%i%s" % (size, fits_format)
                 if len(shape) > 2:
                     fits_dim = str(value.shape[1:][::-1])
-                else:
-                    fits_dim = None
         except KeyError:
             fits_format = "D"
             value = value.astype("f8").ravel()
@@ -132,9 +131,7 @@ class BinaryDataExtension(FlexExtension):
         cls = self.__class__
         header = self._prepare_fits_header(self.header)
         fits_format, fits_dim, value = cls._prepare_fits_array(self.data)
-        column = fits.Column(
-            name="data", format=fits_format, dim=fits_dim, array=value
-        )
+        column = fits.Column(name="data", format=fits_format, dim=fits_dim, array=value)
         hdu = fits.BinTableHDU.from_columns([column], header)
         return hdu
 

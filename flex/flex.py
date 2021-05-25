@@ -17,6 +17,18 @@ try:
 except ImportError:
     fits = None
 
+FITS_DTYPES = (
+    str,
+    int,
+    float,
+    complex,
+    bool,
+    np.floating,
+    np.integer,
+    np.complexfloating,
+    np.bool_,
+)
+
 
 class FlexBase:
     @classmethod
@@ -48,11 +60,11 @@ class FlexBase:
 
     def _prepare_fits_header(self, header):
         def floatstr(obj):
-            if isinstance(obj, (int, np.integer)):
+            if isinstance(obj, FITS_DTYPES):
                 return obj
             if isinstance(obj, (str, np.str)):
                 return ascii(obj)[1:-1]
-            return ascii(obj)
+            return ascii(repr(obj))[1:-1]
 
         def check_length(k, v):
             if (
@@ -67,7 +79,7 @@ class FlexBase:
                     "To avoid this reduce the length of the keyword to less than 8 characters"
                     % k
                 )
-                return v[: 80 - len(k) - 5]
+                return ascii(v[: 80 - len(k) - 6])[1:-1]
 
         # FITS only allows strings and integers, so convert everything into str
         # But only in ASCII representation

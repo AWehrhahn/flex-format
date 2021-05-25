@@ -132,7 +132,7 @@ class BinaryDataExtension(FlexExtension):
         header = self._prepare_fits_header(self.header)
         fits_format, fits_dim, value = cls._prepare_fits_array(self.data)
         column = fits.Column(
-            name="data", format=fits_format, dim=fits_format, array=value
+            name="data", format=fits_format, dim=fits_dim, array=value
         )
         hdu = fits.BinTableHDU.from_columns([column], header)
         return hdu

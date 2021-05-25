@@ -4,6 +4,12 @@ import pandas as pd
 
 from ..flex import FlexExtension
 
+try:
+    from astropy.io import fits
+    from astropy.table import Table
+except ImportError:
+    fits = Table = None
+
 
 class TableExtension(FlexExtension):
     data_extension = "parquet"
@@ -49,6 +55,18 @@ class TableExtension(FlexExtension):
     def from_dict(cls, header: dict, data: dict):
         data = pd.DataFrame.from_records(data["data"])
         obj = cls(header, data)
+        return obj
+
+    def to_fits(self):
+        header = self._prepare_fits_header(self.header)
+        table = Table.from_pandas(self.data)
+        hdu = fits.BinTableHDU(table, header)
+        return hdu
+
+    @classmethod
+    def from_fits(cls, header, data):
+        df = Table(data).to_pandas()
+        obj = cls(header, df)
         return obj
 
 

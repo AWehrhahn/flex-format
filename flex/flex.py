@@ -1,15 +1,18 @@
 import importlib
 import json
-import mmap
 import tarfile
 from io import BytesIO, TextIOWrapper
-from os.path import dirname
-from tarfile import TarFile, TarInfo
+from tarfile import TarInfo
 
 import numpy as np
 
 from . import __version__
-from .json_encoder import FlexJSONEncoder, FlexJSONDecoder
+from .json_encoder import FlexJSONDecoder, FlexJSONEncoder
+
+try:
+    from astropy.io import fits
+except ImportError:
+    fits = None
 
 
 class FlexBase:
@@ -39,6 +42,39 @@ class FlexBase:
         info.size = bio.tell()
         bio.seek(0)
         return info
+
+    def _prepare_fits_header(self, header):
+        INFINITY_VALUE = float("inf")
+
+        def floatstr(obj):
+            if obj != obj:
+                return "NaN"
+            if obj == INFINITY_VALUE:
+                return "+Inf"
+            if obj == -INFINITY_VALUE:
+                return "-Inf"
+            return obj
+
+        header = {k: floatstr(v) for k, v in self.header.items()}
+        header = fits.Header(header)
+        return header
+
+    @classmethod
+    def _parse_fits_header(cls, header):
+        INFINITY_VALUE = float("inf")
+        NaN = float("NaN")
+
+        def floatstr(obj):
+            if obj == "NaN":
+                return NaN
+            if obj == "+Inf":
+                return INFINITY_VALUE
+            if obj == "-Inf":
+                return -INFINITY_VALUE
+            return obj
+
+        header = {k: floatstr(v) for k, v in header.items()}
+        return header
 
 
 class FlexExtension(FlexBase):
@@ -269,4 +305,35 @@ class FlexFile(FlexBase):
             with open(obj, "r") as f:
                 obj = json.load(f, cls=FlexJSONDecoder)
         obj = cls.from_dict(obj)
+        return obj
+
+    def to_fits(self, fname=None, overwrite=False):
+        header = self._prepare_fits_header(self.header)
+        primary = fits.PrimaryHDU(header=header)
+        hdus = [primary]
+        for ext_name, ext_data in self.extensions.items():
+            ext_hdu = ext_data.to_fits()
+            ext_hdu.header["EXTNAME"] = ext_name
+            hdus += [ext_hdu]
+
+        hdulist = fits.HDUList(hdus)
+        if fname is not None:
+            hdulist.writeto(fname, overwrite=overwrite)
+        return hdulist
+
+    @classmethod
+    def from_fits(cls, fname):
+        hdulist = fits.open(fname)
+        header = cls._parse_fits_header(hdulist[0].header)
+        extensions = {}
+        for i in range(1, len(hdulist)):
+            hdu = hdulist[i]
+            ext_header = cls._parse_fits_header(hdu.header)
+            ext_data = hdu.data
+            ext_name = ext_header["EXTNAME"]
+            ext_class = cls._read_ext_class(ext_header)
+            extension = ext_class.from_fits(ext_header, ext_data)
+            extensions[ext_name] = extension
+
+        obj = cls(header, extensions)
         return obj

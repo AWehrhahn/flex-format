@@ -1,13 +1,18 @@
+import base64
+import mmap
 from io import BytesIO
 from tarfile import TarInfo
-import base64
-
-from numpy.lib.format import open_memmap, read_magic, _read_array_header, _check_version
 
 import numpy as np
-import mmap
+from numpy.lib.format import _check_version, _read_array_header, read_magic
 
 from ..flex import FlexExtension
+
+try:
+    from astropy.io import fits
+    from astropy.io.fits.column import NUMPY2FITS
+except ImportError:
+    fits = None
 
 
 class BinaryDataExtension(FlexExtension):
@@ -104,6 +109,40 @@ class BinaryDataExtension(FlexExtension):
         obj = cls(header, arr)
         return obj
 
+    @staticmethod
+    def _prepare_fits_array(value):
+        try:
+            fits_format = f"{value.dtype.kind}{value.dtype.itemsize}"
+            fits_format = NUMPY2FITS[fits_format]
+            shape = value.shape
+            if len(shape) > 1:
+                size = np.prod(value.shape[1:])
+                fits_format = "%i%s" % (size, fits_format)
+                fits_dim = value.shape[1:]
+            else:
+                fits_dim = None
+        except KeyError:
+            fits_format = "D"
+            value = value.astype("f8").ravel()
+            fits_dim = None
+        return fits_format, fits_dim, value
+
+    def to_fits(self):
+        cls = self.__class__
+        header = self._prepare_fits_header(self.header)
+        fits_format, fits_dim, value = cls._prepare_fits_array(self.data)
+        column = fits.Column(
+            name="data", format=fits_format, dim=fits_format, array=value
+        )
+        hdu = fits.BinTableHDU.from_columns([column], header)
+        return hdu
+
+    @classmethod
+    def from_fits(cls, header, data):
+        arr = data["data"]
+        obj = cls(header, arr)
+        return obj
+
 
 class MultipleDataExtension(BinaryDataExtension):
     def __init__(self, header={}, data={}, cls=None):
@@ -150,4 +189,24 @@ class MultipleDataExtension(BinaryDataExtension):
     def from_dict(cls, header: dict, data: dict):
         data = {name: cls._np_from_dict(d) for name, d in data.items()}
         obj = cls(header, data=data)
+        return obj
+
+    def to_fits(self):
+        cls = self.__class__
+        header = self._prepare_fits_header(self.header)
+        columns = []
+        for key, value in self.data.items():
+            fits_format, fits_dim, value = cls._prepare_fits_array(value)
+            # header["__shape_%s__" % key] = str(value.shape)
+            column = fits.Column(
+                name=key, format=fits_format, dim=fits_dim, array=value
+            )
+            columns += [column]
+        hdu = fits.BinTableHDU.from_columns(columns, header)
+        return hdu
+
+    @classmethod
+    def from_fits(cls, header, data):
+        arr = {name: data[name] for name in data.names}
+        obj = cls(header, arr)
         return obj

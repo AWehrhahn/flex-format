@@ -55,7 +55,7 @@ class FlexJSONEncoder(json.JSONEncoder):
             # and/or platform-specific, so do tests which don't depend on the
             # internals.
 
-            if obj != obj: # obj is NaN
+            if obj != obj:  # obj is NaN
                 text = "null"
             elif obj == _inf:
                 text = _repr(INFINITY_VALUE)
@@ -66,31 +66,18 @@ class FlexJSONEncoder(json.JSONEncoder):
 
             return text
 
-        if _one_shot and c_make_encoder is not None and self.indent is None:
-            _iterencode = c_make_encoder(
-                markers,
-                self.default,
-                _encoder,
-                self.indent,
-                self.key_separator,
-                self.item_separator,
-                self.sort_keys,
-                self.skipkeys,
-                self.allow_nan,
-            )
-        else:
-            _iterencode = _make_iterencode(
-                markers,
-                self.default,
-                _encoder,
-                self.indent,
-                floatstr,
-                self.key_separator,
-                self.item_separator,
-                self.sort_keys,
-                self.skipkeys,
-                _one_shot,
-            )
+        _iterencode = _make_iterencode(
+            markers,
+            self.default,
+            _encoder,
+            self.indent,
+            floatstr,
+            self.key_separator,
+            self.item_separator,
+            self.sort_keys,
+            self.skipkeys,
+            _one_shot,
+        )
         return _iterencode(obj, 0)
 
     def default(self, obj):
@@ -125,14 +112,14 @@ class FlexJSONEncoder(json.JSONEncoder):
             return {
                 "__module__": "astropy.units",
                 "__class__": "Unit",
-                "value": str(obj)
+                "value": str(obj),
             }
         if isinstance(obj, units.quantity.Quantity):
             return {
                 "__module__": obj.__class__.__module__,
                 "__class__": obj.__class__.__name__,
                 "value": obj.value,
-                "unit": self.default(obj.unit),
+                "unit": str(obj.unit),
             }
         if isinstance(obj, time.Time):
             return {
@@ -165,6 +152,8 @@ class FlexJSONEncoder(json.JSONEncoder):
             return bool(obj)
         if isinstance(obj, np.str):
             return str(obj)
+        if isinstance(obj, bytes):
+            return obj.decode()
 
         return super().default(obj)
 

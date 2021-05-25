@@ -1,19 +1,19 @@
+import ast
 import importlib
 import json
-from json.decoder import JSONDecoder
 import tarfile
 from io import BytesIO, TextIOWrapper
 from tarfile import TarInfo
+import warnings
 
 import numpy as np
-from numpy.lib.arraysetops import isin
+from numpy.core.defchararray import startswith
 
 from . import __version__
 from .json_encoder import FlexJSONDecoder, FlexJSONEncoder
 
 try:
     from astropy.io import fits
-    import ast
 except ImportError:
     fits = None
 
@@ -47,16 +47,39 @@ class FlexBase:
         return info
 
     def _prepare_fits_header(self, header):
-        INFINITY_VALUE = float("inf")
-
         def floatstr(obj):
-            if isinstance(obj, (int, np.integer, str, np.str)):
+            if isinstance(obj, (int, np.integer)):
                 return obj
-            if isinstance(obj, (float, np.floating)):
-                return repr(obj)
-            return repr(obj)
-        # header = json.loads(json.dumps(header, cls=JSONDecoder))
+            if isinstance(obj, (str, np.str)):
+                return ascii(obj)[1:-1]
+            return ascii(obj)
+
+        def check_length(k, v):
+            if (
+                not isinstance(v, str)
+                or not k.startswith("HIERARCH ")
+                or len(k) + len(v) + 5 <= 80
+            ):
+                return v
+            else:
+                warnings.warn(
+                    "The value of keyword %s is too long, it has been truncated"
+                    "To avoid this reduce the length of the keyword to less than 8 characters"
+                    % k
+                )
+                return v[: 80 - len(k) - 5]
+
+        # FITS only allows strings and integers, so convert everything into str
+        # But only in ASCII representation
         header = {k: floatstr(v) for k, v in self.header.items()}
+        # The key must be 8 letters or less, otherwise use the HIERARCH extension
+        # usually this is handled by the fits package, but here we need to check
+        # the length of the key + value, see next point
+        header = {k if len(k) <= 8 else "HIERARCH " + k: v for k, v in header.items()}
+        # Also the length of the key + value is limited to 80 characters (including the delimiter '=')
+        # If the key is not a HIERARCH extensions, we can use the CONTINUE extension to make it work
+        # But HIERARCH and CONTINUE can not be combined so we truncate the value if it is a HIERARCH keyword
+        header = {k: check_length(k, v) for k, v in header.items()}
         header = fits.Header(header)
         return header
 
@@ -132,7 +155,6 @@ class JsonDataExtension(FlexExtension):
         return ext
 
     def to_dict(self):
-        cls = self.__class__
         obj = {"header": self.header, "data": self.data}
         return obj
 
@@ -293,7 +315,6 @@ class FlexFile(FlexBase):
         return obj
 
     def to_json(self, fp=None):
-        cls = self.__class__
         obj = self.to_dict()
         kwargs = dict(cls=FlexJSONEncoder, allow_nan=False, skipkeys=False)
         if fp is None:

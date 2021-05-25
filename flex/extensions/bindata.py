@@ -118,9 +118,10 @@ class BinaryDataExtension(FlexExtension):
             if len(shape) > 1:
                 size = np.prod(value.shape[1:])
                 fits_format = "%i%s" % (size, fits_format)
-                fits_dim = value.shape[1:]
-            else:
-                fits_dim = None
+                if len(shape) > 2:
+                    fits_dim = str(value.shape[1:][::-1])
+                else:
+                    fits_dim = None
         except KeyError:
             fits_format = "D"
             value = value.astype("f8").ravel()

@@ -109,6 +109,10 @@ class BinaryDataExtension(FlexExtension):
         obj = cls(header, arr)
         return obj
 
+    @classmethod
+    def from_json(cls, header=None, **data):
+        return cls.from_dict(header, data)
+
     @staticmethod
     def _prepare_fits_array(value):
         try:

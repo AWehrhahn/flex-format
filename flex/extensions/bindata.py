@@ -93,6 +93,7 @@ class BinaryDataExtension(FlexExtension):
         decoded = base64.b64decode(decoded)
         arr = np.frombuffer(decoded, dtype=data["dtype"])
         arr = arr.reshape(data["shape"])
+        arr = np.require(arr, requirements=["W"])
         return arr
 
     def to_dict(self):

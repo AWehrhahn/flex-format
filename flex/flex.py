@@ -2,12 +2,12 @@ import ast
 import importlib
 import json
 import tarfile
+import warnings
 from io import BytesIO, TextIOWrapper
 from tarfile import TarInfo
-import warnings
+from threading import Thread
 
 import numpy as np
-from numpy.core.defchararray import startswith
 
 from . import __version__
 from .json_encoder import FlexJSONDecoder, FlexJSONEncoder
@@ -224,6 +224,14 @@ class FlexFile(FlexBase):
             file.addfile(info, bio)
             for ext in extensions:
                 file.addfile(ext[0], ext[1])
+
+    def write_async(self, fname: str, compression=False):
+        worker = Thread(
+            target=self.write, args=(fname,), kwargs={"compression": compression}
+        )
+        worker.daemon = True
+        worker.start()
+        pass
 
     @classmethod
     def _read_ext_class(cls, ext_header):

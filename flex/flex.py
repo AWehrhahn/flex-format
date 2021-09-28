@@ -124,7 +124,11 @@ class FlexExtension(FlexBase):
     def __init__(self, header={}, cls=None, **kwargs):
         self.header = header
         if cls is not None:
-            (self.header["__module__"], self.header["__class__"],) = cls.rsplit(".", 1)
+            try:
+                self.header["__module__"] = cls.__module__
+                self.header["__class__"] = cls.__name__
+            except:
+                (self.header["__module__"], self.header["__class__"],) = cls.rsplit(".", 1)
         else:
             self.header["__module__"] = self.__class__.__module__
             self.header["__class__"] = self.__class__.__name__

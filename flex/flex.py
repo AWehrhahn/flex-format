@@ -1,16 +1,32 @@
 # -*- coding: utf-8 -*-
-import ast
+"""
+FLEX - The flexible file format
+
+A flex file is a tar file, containing of a header,
+and any number of extensions. Each extension contains its own header
+and usually some data files.
+The header files are json files, with additional conversions to
+make them more convenient.
+
+@author Ansgar Wehrhahn
+@email ansgar.wehrhahn@physics.uu.se
+"""
+from __future__ import annotations
+
 import importlib
 import json
 import tarfile
-import warnings
-from io import BytesIO, TextIOWrapper
-from tarfile import TarInfo
+from tarfile import TarFile
 from threading import Thread
+from typing import Any
 
 import numpy as np
 
 from . import __version__
+from .base import FlexBase, FlexExtension
+from .extensions.bindata import BinaryDataExtension
+from .extensions.jsondata import JsonDataExtension
+from .extensions.tabledata import TableExtension
 from .json_encoder import FlexJSONDecoder, FlexJSONEncoder
 
 try:
@@ -18,194 +34,57 @@ try:
 except ImportError:
     fits = None
 
-FITS_DTYPES = (
-    str,
-    int,
-    float,
-    complex,
-    bool,
-    np.floating,
-    np.integer,
-    np.complexfloating,
-    np.bool_,
-)
-
-
-class FlexBase:
-    @classmethod
-    def _prepare_json(cls, fname: str, data: dict):
-        tio = TextIOWrapper(BytesIO(), "utf-8")
-        kwargs = dict(cls=FlexJSONEncoder, allow_nan=False, skipkeys=False)
-        json.dump(data, tio, **kwargs)
-        bio = tio.detach()
-        info = cls._get_tarinfo_from_bytesio(fname, bio)
-        return info, bio
-
-    @staticmethod
-    def _parse_json(bio):
-        data = json.load(bio, cls=FlexJSONDecoder)
-        return data
-
-    @classmethod
-    def _read_json(cls, file, name):
-        bio = file.extractfile(name)
-        data = cls._parse_json(bio)
-        return data
-
-    @staticmethod
-    def _get_tarinfo_from_bytesio(fname, bio):
-        info = TarInfo(fname)
-        info.size = bio.tell()
-        bio.seek(0)
-        return info
-
-    def _prepare_fits_header(self, header):
-        def floatstr(obj):
-            if isinstance(obj, FITS_DTYPES):
-                return obj
-            if isinstance(obj, (str, np.str)):
-                return ascii(obj)[1:-1]
-            return ascii(repr(obj))[1:-1]
-
-        def check_length(k, v):
-            if (
-                not isinstance(v, str)
-                or not k.startswith("HIERARCH ")
-                or len(k) + len(v) + 5 <= 80
-            ):
-                return v
-            else:
-                warnings.warn(
-                    "The value of keyword %s is too long, it has been truncated"
-                    "To avoid this reduce the length of the keyword to less than 8 characters"
-                    % k
-                )
-                return ascii(v[: 80 - len(k) - 6])[1:-1]
-
-        # FITS only allows strings and integers, so convert everything into str
-        # But only in ASCII representation
-        header = {k: floatstr(v) for k, v in self.header.items()}
-        # The key must be 8 letters or less, otherwise use the HIERARCH extension
-        # usually this is handled by the fits package, but here we need to check
-        # the length of the key + value, see next point
-        header = {k if len(k) <= 8 else "HIERARCH " + k: v for k, v in header.items()}
-        # Also the length of the key + value is limited to 80 characters (including the delimiter '=')
-        # If the key is not a HIERARCH extensions, we can use the CONTINUE extension to make it work
-        # But HIERARCH and CONTINUE can not be combined so we truncate the value if it is a HIERARCH keyword
-        header = {k: check_length(k, v) for k, v in header.items()}
-        header = fits.Header(header)
-        return header
-
-    @classmethod
-    def _parse_fits_header(cls, header):
-        INFINITY_VALUE = float("inf")
-        NaN = float("NaN")
-
-        def floatstr(obj):
-            if obj == "nan":
-                return NaN
-            if obj == "inf":
-                return INFINITY_VALUE
-            if obj == "-inf":
-                return -INFINITY_VALUE
-            if isinstance(obj, str):
-                if obj.startswith("array"):
-                    return np.array(ast.literal_eval(obj[6:-1]))
-                try:
-                    return ast.literal_eval(obj)
-                except Exception:
-                    pass
-            return obj
-
-        header = {k: floatstr(v) for k, v in header.items()}
-        return header
-
-
-class FlexExtension(FlexBase):
-    def __init__(self, header={}, cls=None, **kwargs):
-        self.header = header
-        if cls is not None:
-            try:
-                self.header["__module__"] = cls.__module__
-                self.header["__class__"] = cls.__name__
-            except AttributeError:
-                (
-                    self.header["__module__"],
-                    self.header["__class__"],
-                ) = cls.rsplit(".", 1)
-        else:
-            self.header["__module__"] = self.__class__.__module__
-            self.header["__class__"] = self.__class__.__name__
-        self.header["__header__"] = True
-
-    def _prepare(self, name: str):
-        raise NotImplementedError
-
-    @classmethod
-    def _parse(cls, header: dict, members: dict):
-        raise NotImplementedError
-
-    def to_dict(self):
-        raise NotImplementedError
-
-    @classmethod
-    def from_dict(cls, header: dict, data):
-        raise NotImplementedError
-
-
-class JsonDataExtension(FlexExtension):
-    def __init__(self, header={}, data={}, cls=None):
-        super().__init__(header=header, cls=cls)
-        self.data = data
-
-    def _prepare(self, name: str):
-        cls = self.__class__
-        header_fname = f"{name}/header.json"
-        data_fname = f"{name}/data.json"
-        header_info, header_bio = cls._prepare_json(header_fname, self.header)
-        data_info, data_bio = cls._prepare_json(data_fname, self.data)
-
-        return [(header_info, header_bio), (data_info, data_bio)]
-
-    @classmethod
-    def _parse(cls, header: dict, members: dict):
-        bio = members["data.json"]
-        data = cls._parse_json(bio)
-        ext = cls(header=header, data=data)
-        return ext
-
-    def to_dict(self):
-        obj = {"header": self.header, "data": self.data}
-        return obj
-
-    @classmethod
-    def from_dict(cls, header: dict, data: dict):
-        arr = data["data"]
-        obj = cls(header, arr)
-        return obj
+FITS_EXTENSION = {
+    fits.BinTableHDU: TableExtension,
+    fits.ImageHDU: BinaryDataExtension,
+}
 
 
 class FlexFile(FlexBase):
-    def __init__(self, header={}, extensions={}, fileobj=None):
-        if isinstance(header, str):
-            other = self.read(header)
-            self.header = other.header
-            self.extensions = other.extensions
-            self.fileobj = other.fileobj
-        else:
-            self.header = header
-            self.extensions = extensions
-            self.fileobj = fileobj
-            self.header["__version__"] = __version__
-            self.header["__header__"] = True
+    """
+    The Flex file that contains it all,
+    handles reading and writing of the data
+    """
 
-    def __getitem__(self, key):
+    def __init__(
+        self,
+        header: dict = None,
+        extensions: dict[str, FlexExtension] = None,
+        fileobj: TarFile = None,
+    ):
+        # dict: Header dictionary with any data
+        self.header: dict[str, Any] = header if header is not None else {}
+        # dict: Extensions contained within this file
+        self.extensions: dict[str:FlexExtension] = (
+            extensions if extensions is not None else {}
+        )
+        # TarFile: The fileobject that this object represents
+        self.fileobj: TarFile = fileobj
+        self.header["__version__"] = __version__
+        self.header["__header__"] = True
+
+    def __getitem__(self, key: str) -> FlexExtension:
         return self.extensions[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: FlexExtension):
         self.extensions[key] = value
 
-    def write(self, fname: str, compression=False):
+    def write(self, fname: str, compression: bool = False):
+        """
+        Write this file including all extensions to disk
+
+        Parameters
+        ----------
+        fname : str
+            Location at which to store the file
+        compression : bool, optional
+            Whether to compress the file, by default False
+
+        Raises
+        ------
+        ValueError
+            An extension could not be saved
+        """
         # Write the header
         cls = self.__class__
         # Update header with current metadata
@@ -217,8 +96,6 @@ class FlexFile(FlexBase):
         for name, ext in self.extensions.items():
             if isinstance(ext, FlexExtension):
                 extensions += ext._prepare(name)
-            elif hasattr(ext, "__flex_save__"):
-                extensions += ext.__flex_save__()._prepare(name)
             elif hasattr(ext, "to_dict"):
                 extensions += JsonDataExtension(
                     data=ext.to_dict(),
@@ -233,29 +110,52 @@ class FlexFile(FlexBase):
             for ext in extensions:
                 file.addfile(ext[0], ext[1])
 
-    def write_async(self, fname: str, compression=False):
+    def write_async(self, fname: str, compression: bool = False):
+        """
+        !EXPERIMENTAL
+        Write data to disk async, only works if this file is
+        not manipulated until the operation is finished.
+        """
         worker = Thread(
             target=self.write, args=(fname,), kwargs={"compression": compression}
         )
         worker.daemon = True
         worker.start()
-        pass
 
     @classmethod
-    def _read_ext_class(cls, ext_header):
-        try:
-            ext_module = ext_header["__module__"]
-            ext_class = ext_header["__class__"]
-        except KeyError:
-            ext_module = ext_header["extension_module"]
-            ext_class = ext_header["extension_class"]
-
+    def _read_ext_class(cls, ext_header: dict) -> type[FlexExtension]:
+        """Determine and load the class that created this extension"""
+        ext_module = ext_header["__module__"]
+        ext_class = ext_header["__class__"]
         ext_module = importlib.import_module(ext_module)
         ext_class = getattr(ext_module, ext_class)
         return ext_class
 
     @classmethod
-    def read(cls, fname: str, mmap=False):
+    def read(cls, fname: str, mmap: bool = False) -> FlexFile:
+        """
+        Read a flex file from disk
+
+        Parameters
+        ----------
+        fname : str
+            Filename of the file to load
+        mmap : bool, optional
+            Whether to memory map the file. This means that the file will
+            not be read into working memory, until that bit is accessed.
+            Useful for large datafiles, but only works with uncompressed files.
+            By default False.
+
+        Returns
+        -------
+        FlexFile
+            The read file
+
+        Raises
+        ------
+        ValueError
+            If any extension could not be read
+        """
         handle = open(fname, "rb")
         # If we allow mmap.ACCESS_WRITE, we invalidate the checksum
         # So I think the best solution is to use COPY
@@ -301,8 +201,6 @@ class FlexFile(FlexBase):
             }
             if issubclass(ext_class, FlexExtension):
                 exten = ext_class._parse(ext_header, ext_other)
-            elif hasattr(ext_class, "__flex_load__"):
-                exten = ext_class.__flex_load__(ext_header, ext_other)
             elif hasattr(ext_class, "from_dict"):
                 temp_exten = JsonDataExtension._parse(ext_header, ext_other)
                 exten = ext_class.from_dict(temp_exten.data)
@@ -314,18 +212,36 @@ class FlexFile(FlexBase):
         return cls(header=header, extensions=extensions, fileobj=file)
 
     def close(self):
+        """Close this file"""
         if self.fileobj is not None:
             self.fileobj.fileobj.close()
             self.fileobj.close()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
+        """
+        Create a dictionary representation of this file.
+        Each extension handles the conversion itself.
+        """
         obj = {"header": self.header}
         for name, ext in self.extensions.items():
             obj[name] = ext.to_dict()
         return obj
 
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict) -> FlexFile:
+        """
+        Load data from a dictionary
+
+        Parameters
+        ----------
+        data : dict
+            The data to parse
+
+        Returns
+        -------
+        FlexFile
+            The created flex file
+        """
         header = {}
         extensions = {}
         for name, ext in data.items():
@@ -342,20 +258,48 @@ class FlexFile(FlexBase):
         obj = cls(header, extensions)
         return obj
 
-    def to_json(self, fp=None):
+    def to_json(self, fp: str = None) -> str:
+        """
+        Create a json representation of this file.
+        This uses the to_dict method of the file,
+        and then converts it into a JSON string
+
+        Parameters
+        ----------
+        fp : str, optional
+            If given will store the data at that location
+
+        Returns
+        -------
+        obj : str
+            The json string
+        """
         obj = self.to_dict()
         kwargs = dict(cls=FlexJSONEncoder, allow_nan=False, skipkeys=False)
-        if fp is None:
-            obj = json.dumps(obj, **kwargs)
-            return obj
-        elif isinstance(fp, str):
-            with open(fp, "w") as f:
-                json.dump(obj, f, **kwargs)
-        else:
-            json.dump(obj, fp, **kwargs)
+        obj = json.dumps(obj, **kwargs)
+        if fp is not None:
+            try:
+                fp.write(obj)
+            except AttributeError:
+                with open(fp, "w") as f:
+                    f.write(obj)
+        return obj
 
     @classmethod
-    def from_json(cls, obj):
+    def from_json(cls, obj: str) -> FlexFile:
+        """
+        Read a flex file from a json representation
+
+        Parameters
+        ----------
+        obj : str
+            Json string, or file name
+
+        Returns
+        -------
+        FlexFile
+            The converted flex file
+        """
         try:
             obj = json.loads(obj, cls=FlexJSONDecoder)
         except json.decoder.JSONDecodeError:
@@ -365,8 +309,23 @@ class FlexFile(FlexBase):
         obj = cls.from_dict(obj)
         return obj
 
-    def to_fits(self, fname=None, overwrite=False):
-        header = self._prepare_fits_header(self.header)
+    def to_fits(self, fname: str | None = None, overwrite: bool = False) -> list[Any]:
+        """
+        Save this flex file in a fits file format
+
+        Parameters
+        ----------
+        fname : str, optional
+            If given will save the data at this location, by default None
+        overwrite : bool, optional
+            Whether to overwrite existing data, by default False
+
+        Returns
+        -------
+        hdulist : List[Any]
+            the fits data
+        """
+        header = self._prepare_fits_header()
         primary = fits.PrimaryHDU(header=header)
         hdus = [primary]
         for ext_name, ext_data in self.extensions.items():
@@ -380,7 +339,20 @@ class FlexFile(FlexBase):
         return hdulist
 
     @classmethod
-    def from_fits(cls, fname):
+    def from_fits(cls, fname: str) -> FlexFile:
+        """
+        Read a fits file into a flex file
+
+        Parameters
+        ----------
+        fname : str
+            the file to read
+
+        Returns
+        -------
+        FlexFile
+            the converted flex file
+        """
         hdulist = fits.open(fname)
         header = cls._parse_fits_header(hdulist[0].header)
         extensions = {}
@@ -389,7 +361,14 @@ class FlexFile(FlexBase):
             ext_header = cls._parse_fits_header(hdu.header)
             ext_data = hdu.data
             ext_name = ext_header["EXTNAME"]
-            ext_class = cls._read_ext_class(ext_header)
+            try:
+                # Try determining the flex class the normal way
+                ext_class = cls._read_ext_class(ext_header)
+            except KeyError:
+                # Otherwise use the default mapping between
+                # fits extensions and flex extensions
+                ext_class = FITS_EXTENSION[type(hdu)]
+
             extension = ext_class.from_fits(ext_header, ext_data)
             extensions[ext_name] = extension
 

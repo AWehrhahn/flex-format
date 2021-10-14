@@ -6,10 +6,10 @@ import sys
 from json.encoder import (
     INFINITY,
     _make_iterencode,
-    c_make_encoder,
     encode_basestring,
     encode_basestring_ascii,
 )
+from typing import Any
 
 import numpy as np
 from astropy import coordinates, time, units
@@ -26,7 +26,7 @@ class FlexJSONEncoder(json.JSONEncoder):
     to their python base type
     """
 
-    def iterencode(self, obj, _one_shot=False):
+    def iterencode(self, obj: Any, _one_shot: bool = False) -> str:
         """Encode the given object and yield each string
         representation as available.
 
@@ -81,7 +81,7 @@ class FlexJSONEncoder(json.JSONEncoder):
         )
         return _iterencode(obj, 0)
 
-    def default(self, obj):
+    def default(self, obj: Any) -> str:
         if hasattr(obj, "to_dict"):
             data = obj.to_dict()
             data["__module__"] = obj.__class__.__module__
@@ -164,7 +164,7 @@ class FlexJSONDecoder(json.JSONDecoder):
         kwargs["object_hook"] = self._object_hook
         super().__init__(*args, **kwargs)
 
-    def _object_hook(self, obj):
+    def _object_hook(self, obj: Any) -> Any:
         # If we specified a class and module use this:
         # but its not the lowest level of the header!
         if (

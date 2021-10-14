@@ -7,13 +7,11 @@ from .extensions.tabledata import TableExtension
 from .flex import FlexFile
 
 
-def write(filename, **data):
+def write(filename: str, **data):
     header = {}
     extensions = {}
     for key, value in data.items():
-        if hasattr(value, "__flex_save__"):
-            extensions[key] = value
-        elif type(value) is np.ndarray:
+        if type(value) is np.ndarray:
             extensions[key] = BinaryDataExtension(data=value)
         elif isinstance(value, pd.DataFrame):
             extensions[key] = TableExtension(data=value)
@@ -24,5 +22,5 @@ def write(filename, **data):
     ff.write(filename)
 
 
-def read(filename):
+def read(filename: str) -> FlexFile:
     return FlexFile.read(filename)

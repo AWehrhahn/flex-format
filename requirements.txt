@@ -1,4 +1,5 @@
-numpy
 astropy
+numpy
 pandas
+pre-commit
 pyarrow

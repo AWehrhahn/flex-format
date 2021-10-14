@@ -1,13 +1,14 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
-from flex.flex import FlexFile
-from flex.extensions.bindata import BinaryDataExtension, MultipleDataExtension
-from flex.extensions.tabledata import TableExtension, JSONTableExtension
 
+from flex.extensions.bindata import BinaryDataExtension, MultipleDataExtension
+from flex.extensions.tabledata import JSONTableExtension, TableExtension
+from flex.flex import FlexFile
 
 file = FlexFile()
 
-ext_bin = BinaryDataExtension(data=np.linspace(0, 1, 4*3*2).reshape((4,3,2)))
+ext_bin = BinaryDataExtension(data=np.linspace(0, 1, 4 * 3 * 2).reshape((4, 3, 2)))
 
 ext = MultipleDataExtension()
 ext.data["data"] = np.arange(12, dtype="i2").reshape((3, 2, 2))

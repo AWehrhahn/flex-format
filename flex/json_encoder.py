@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+import datetime
+import importlib
 import json
 import sys
 from json.encoder import (
@@ -7,11 +10,9 @@ from json.encoder import (
     encode_basestring,
     encode_basestring_ascii,
 )
-import importlib
 
 import numpy as np
-from astropy import units, coordinates, time
-import datetime
+from astropy import coordinates, time, units
 
 INFINITY_VALUE = sys.float_info.max
 
@@ -21,7 +22,7 @@ class FlexJSONEncoder(json.JSONEncoder):
     Custom JSON Encoder for Flex files
     this overrides the float behaviour to default to null for nan values
     and the maximum floating point value for +/-infinity
-    It also overrides the default method to handle numpy values and cast them 
+    It also overrides the default method to handle numpy values and cast them
     to their python base type
     """
 

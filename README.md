@@ -10,4 +10,3 @@ Structure:
  - e.g. numpy data, pandas table
  - each folder must contain a header in the form of a header.json file
  - each type of container gets a file in "extension", container type is set in that extensions header.json
- 

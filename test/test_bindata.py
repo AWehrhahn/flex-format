@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 
-from flex.flex import FlexFile
 from flex.extensions.bindata import BinaryDataExtension, MultipleDataExtension
+from flex.flex import FlexFile
 
 
 def test_read_write(tmp_fname):

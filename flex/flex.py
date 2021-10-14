@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import ast
 import importlib
 import json
@@ -112,7 +113,7 @@ class FlexBase:
                     return np.array(ast.literal_eval(obj[6:-1]))
                 try:
                     return ast.literal_eval(obj)
-                except:
+                except Exception:
                     pass
             return obj
 
@@ -127,8 +128,11 @@ class FlexExtension(FlexBase):
             try:
                 self.header["__module__"] = cls.__module__
                 self.header["__class__"] = cls.__name__
-            except:
-                (self.header["__module__"], self.header["__class__"],) = cls.rsplit(".", 1)
+            except AttributeError:
+                (
+                    self.header["__module__"],
+                    self.header["__class__"],
+                ) = cls.rsplit(".", 1)
         else:
             self.header["__module__"] = self.__class__.__module__
             self.header["__class__"] = self.__class__.__name__
@@ -354,7 +358,7 @@ class FlexFile(FlexBase):
     def from_json(cls, obj):
         try:
             obj = json.loads(obj, cls=FlexJSONDecoder)
-        except json.decoder.JSONDecodeError as ex:
+        except json.decoder.JSONDecodeError:
             # Its already a json string
             with open(obj, "r") as f:
                 obj = json.load(f, cls=FlexJSONDecoder)

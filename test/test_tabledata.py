@@ -1,13 +1,14 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
+import pytest
 
-from flex.flex import FlexFile
 from flex.extensions.tabledata import (
-    TableExtension,
     AsciiTableExtension,
     JSONTableExtension,
+    TableExtension,
 )
+from flex.flex import FlexFile
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import tempfile
 
@@ -10,5 +11,5 @@ def tmp_fname():
     yield tfile.name
     try:
         os.remove(tfile.name)
-    except:
+    except Exception:
         pass

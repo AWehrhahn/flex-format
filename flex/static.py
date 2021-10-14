@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
 
-from .flex import FlexFile
 from .extensions.bindata import BinaryDataExtension
 from .extensions.tabledata import TableExtension
+from .flex import FlexFile
 
 
 def write(filename, **data):

@@ -96,6 +96,8 @@ class FlexFile(FlexBase):
         for name, ext in self.extensions.items():
             if isinstance(ext, FlexExtension):
                 extensions += ext._prepare(name)
+            elif hasattr(ext, "__flex_save__"):
+                extensions += ext.__flex_save__()
             elif hasattr(ext, "to_dict"):
                 extensions += JsonDataExtension(
                     data=ext.to_dict(),
@@ -201,6 +203,8 @@ class FlexFile(FlexBase):
             }
             if issubclass(ext_class, FlexExtension):
                 exten = ext_class._parse(ext_header, ext_other)
+            elif hasattr(ext_class, "__flex_load__"):
+                exten = ext_class.__flex_load__(ext_header, ext_other)
             elif hasattr(ext_class, "from_dict"):
                 temp_exten = JsonDataExtension._parse(ext_header, ext_other)
                 exten = ext_class.from_dict(temp_exten.data)

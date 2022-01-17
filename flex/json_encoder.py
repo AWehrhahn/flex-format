@@ -190,6 +190,10 @@ class FlexJSONDecoder(json.JSONDecoder):
             if hasattr(cls, "from_json"):
                 return cls.from_json(*args, **kwargs)
 
-            return cls(*args, **kwargs)
+            try:
+                return cls(*args, **kwargs)
+            except Exception as ex:
+                print(ex)
+                return obj
         # Otherwise just return it
         return obj

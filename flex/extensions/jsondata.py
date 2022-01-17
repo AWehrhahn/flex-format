@@ -24,8 +24,12 @@ class JsonDataExtension(FlexExtension):
 
     @classmethod
     def _parse(cls, header: dict, members: dict) -> JsonDataExtension:
-        bio = members["data.json"]
-        data = cls._parse_json(bio)
+        try:
+            bio = members["data.json"]
+            data = cls._parse_json(bio)
+        except KeyError:
+            print("WARNING: No data found in JSON extension")
+            data = {}
         ext = cls(header=header, data=data)
         return ext
 
